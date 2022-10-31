@@ -1,11 +1,96 @@
-.noselect {
-  -webkit-touch-callout: none;
+.controls {
+  display: flex;
+  align-items: center;
+}
+
+.controls .reset {
+  display:   inline-block;
+  font-size: 2em;
+  border:    none;
+  cursor:    pointer; 
+}
+
+.controls .level-selector {
+  display: inline-block;
+}
+
+.grid {
+  display: grid;
+  background-color: rgb(192, 192, 192);
+}
+
+.cell {
+  aspect-ratio: 1 / 1;
+  color: rgb(1, 127, 1);
+  text-align: center;
+  align-content: end;
+  font-size: 2em;
+  font-weight: bold;
+  cursor: default;
+  outline: 0px;
+  display: grid;
+  border: 1px solid gray;
+  justify-self: stretch;
+  box-shadow: none;
   -webkit-user-select: none; 
-  -moz-user-select: none; 
-  -ms-user-select: none;
   user-select: none;
-  -webkit-user-drag: none;
-  -moz-user-drag: none;
-  -o-user-drag: none;
-  user-drag: none;
+}
+
+.cell.hidden {
+  cursor: pointer;
+  box-shadow: .08em .08em #ffffff inset, -.08em -.08em grey inset;
+}
+
+.cell.boom {
+  font-size: 1.6em;
+  align-content: center;
+}
+
+.cell.flagged {
+  font-size: 1.6em;
+  align-content: center;
+}
+
+.cell.v0 {
+  color: #00000000;
+}
+
+.cell.v1 {
+  color: #0100fe;
+}
+
+.cell.v2 {
+  color: #017f01;
+}
+
+.cell.v3 {
+  color: #fe0000;
+}
+
+.cell.v4 {
+  color: #010080;
+}
+
+.cell.v5 {
+  color: #810102;
+}
+
+.cell.v6 {
+  color: #008081;
+}
+
+.cell.v7 {
+  color: #000000;
+}
+
+.cell.v8 {
+  color: #808080;
+}
+
+.grid.boom .cell {
+    border: 1px solid red;
+}
+
+.grid.win .cell {
+  border: 1px solid green;
 }
