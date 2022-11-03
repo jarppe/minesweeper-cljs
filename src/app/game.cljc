@@ -1,5 +1,12 @@
 (ns app.game)
 
+
+(def levels
+  {:game.level/easy         {:game/width 9 :game/height 9 :game/mines-count 10}
+   :game.level/intermediate {:game/width 16 :game/height 16 :game/mines-count 40}
+   :game.level/expert       {:game/width 30 :game/height 16 :game/mines-count 99}})
+
+
 (defn gen-mine
   [max-x max-y]
   [(rand-int max-x) (rand-int max-y)])

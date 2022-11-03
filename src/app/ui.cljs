@@ -3,164 +3,121 @@
    [clojure.string :as str]
    [reagent.core :as r]
    [app.game :as game]
-   [goog.object :as go]))
+   [app.state :as state]
+   [app.util :as util]))
 
 
-(def levels
-  {:game.level/easy         {:game/width 9 :game/height 9 :game/mines-count 10}
-   :game.level/intermediate {:game/width 16 :game/height 16 :game/mines-count 40}
-   :game.level/expert       {:game/width 30 :game/height 16 :game/mines-count 99}})
-
-
-(def init-state
-  {:game/history []
-   :game/level   :game.level/easy
-   :game/game    (game/make-game (:game.level/easy levels))
-   :inter/timer  nil})
-
-
-(defonce app-state
-  (r/atom init-state))
-
-
-(defn reset-game! []
-  (r/rswap! app-state
-            (fn [{:as state :inter/keys [timer] :game/keys [game level]}]
-              (when timer
-                (js/clearTimeout timer))
-              (-> state
-                  (update :game/history conj game)
-                  (assoc :game/game (-> level levels game/make-game))))))
-
-
-(defn select-level! [level]
-  (r/rswap! app-state assoc :game/level level)
-  (reset-game!))
-
-
-(defn level-selector []
+(defn level-selector [{:keys [set-level]}]
   (into [:<>]
-        (for [[k _] levels]
+        (for [[k _] game/levels]
           [:button.level-selector
-           {:on-click #(select-level! k)}
+           {:on-click (fn [_] (set-level k))}
            (name k)])))
 
 
-(defn reset-button [{:keys [status]}]
-  [:button.reset {:on-click reset-game!}
+(defn reset-button [{:keys [status reset-game]}]
+  [:button.reset {:on-click (fn [_e]
+                              (reset-game)
+                              nil)}
    (condp = status
      :game.status/win  "😎"
      :game.status/boom "🌚"
      "🌝")])
 
 
-(defn get-touch-xy [^js evt]
-  (let [touch-list (.-targetTouches evt)]
-    (if (pos? (.-length touch-list))
-      (let [touch-item (.item touch-list 0)]
-        [(.-clientX touch-item) (.-clientY touch-item)])
-      [0 0])))
+(defn undo-button [{:keys [disabled? undo]}]
+  [:button.undo
+   {:disabled disabled?
+    :on-click (fn [_e]
+                (undo)
+                nil)}
+   "⬅"])
 
 
-(defn get-mouse-xy [^js evt]
-  [(.-clientX evt) (.-clientY evt)])
+(def flag-delay 100)
 
 
-(defn evt-inside? [^js evt {:keys [x1 y1 x2 y2]}]
-  (let [[x y] (if (-> evt .-type (= "touchmove"))
-                (get-touch-xy evt)
-                (get-mouse-xy evt))]
-    (and (<= x1 x x2)
-         (<= y1 y y2))))
+(declare handle-click-event)
 
 
-(defn prevent-default [^js evt]
-  (.preventDefault evt))
+; If this was right mouse click, or left click with either ctrl or meta,
+; toggle the flag without delay. Otherwise start user interaction. Clear 
+; possible pending timeout, start new timeout and save component bounds 
+; and coords to state. Also, save the synthetic timer-evt to state, when 
+; timer elapses we verify that the event is the same, so that possible 
+; stray timers don't confuse our state management.
+
+(defn- on-mouse-down [state evt]
+  (when-let [timer (-> state :inter/timer)]
+    (js/clearTimeout timer))
+  (let [target (.-target evt)
+        timer-evt (util/make-timer-evt)
+        coords (util/get-target-coords target)]
+    (if (or (-> evt .-ctrlKey)
+            (-> evt .-metaKey)
+            (-> evt .-button (= 2)))
+      (-> state
+          (state/toggle-flag coords)
+          (assoc :inter/timer nil))
+      (assoc state
+             :inter/timer (js/setTimeout handle-click-event flag-delay timer-evt)
+             :inter/timer-evt timer-evt
+             :inter/bounds (-> target (.getBoundingClientRect) (util/client-rect->bounds))
+             :inter/coords (util/get-target-coords target)))))
 
 
-(def flag-delay 200)
+; Moving. If we are in user interaction, check if the user is still
+; within the cell bounds. If not, cancel the interaction.
+
+(defn- on-mouse-move [{:as state :inter/keys [timer bounds]} evt]
+  (if (or (nil? timer) (util/evt-inside? evt bounds))
+    state
+    (do (js/clearTimeout timer)
+        (assoc state :inter/timer nil))))
 
 
-(defn make-timer-evt []
-  (doto (js/Object.)
-    (go/set "type" "timer")
-    (go/set "preventDefault" identity)))
+; End of user interaction. If we end up here with timer, it means that 
+; the interaction was completed within the same DOM element that it 
+; started, *AND* that interacton ended before the timer was fired. This 
+; means it's regular click.
+;
+; If it's a long click and the game has ended (state is not :game.status/ok),
+; then make a reset. This saves user from clicking the reset button all the way
+; at the top.
+
+(defn- on-mouse-up [{:as state :inter/keys [timer coords]} _evt]
+  (if timer
+    (do (js/clearTimeout timer)
+        (-> state
+            (assoc :inter/timer nil)
+            (state/play coords)))
+    (if (-> state :game/game :game/status (not= :game.status/ok))
+      (-> state
+          (assoc :inter/timer nil)
+          (state/reset-game))
+      state)))
 
 
-(defn client-rect->bounds [^js client-rect]
-  {:x1 (.-left client-rect)
-   :x2 (.-right client-rect)
-   :y1 (.-top client-rect)
-   :y2 (.-bottom client-rect)})
+; Fired when click has been active for flag-delay milliseconds. This 
+; means it's a "long" click and we need to toggle the flag. Verify that
+; the received event is the one saved in state.
 
-
-(defn get-target-coords [^js target]
-  (let [dataset (-> target .-dataset)]
-    [(-> dataset .-x (js/parseInt 10))
-     (-> dataset .-y (js/parseInt 10))]))
+(defn- on-timer [{:as state :inter/keys [timer timer-evt coords] :game/keys [game]} evt]
+  (if (and (some? timer) (identical? evt timer-evt))
+    (assoc state
+           :game/game (game/toggle-flag game coords)
+           :inter/timer nil)
+    state))
 
 
 (defn- handle-click-event [^js evt]
-  (prevent-default evt)
-  (r/rswap! app-state
+  (r/rswap! state/app-state
             (case (.-type evt)
-              ; If this was right mouse click, or left click with either ctrl or meta,
-              ; toggle the flag without delay. Otherwise start user interaction. Clear 
-              ; possible pending timeout, start new timeout and save component bounds 
-              ; and coords to state. Also, save the synthetic timer-evt to state, when 
-              ; timer elapses we verify that the event is the same, so that possible 
-              ; stray timers don't confuse our state management.
-              ("mousedown" "touchstart")
-              (fn [{:as state :inter/keys [timer] :game/keys [game]}]
-                (when timer
-                  (js/clearTimeout timer))
-                (let [target (.-target evt)
-                      timer-evt (make-timer-evt)
-                      coords (get-target-coords target)]
-                  (if (or (-> evt .-ctrlKey)
-                          (-> evt .-metaKey)
-                          (-> evt .-button (= 2)))
-                    (assoc state
-                           :game/game (game/toggle-flag game coords)
-                           :inter/timer nil)
-                    (assoc state
-                           :inter/timer (js/setTimeout handle-click-event flag-delay timer-evt)
-                           :inter/timer-evt timer-evt
-                           :inter/bounds (-> target (.getBoundingClientRect) (client-rect->bounds))
-                           :inter/coords (get-target-coords target)))))
-
-              ; Moving. If we are in user interaction, check if the user is still
-              ; within the cell bounds. If not, cancel the interaction.
-              ("mousemove" "touchmove")
-              (fn [{:as state :inter/keys [timer bounds]}]
-                (if (or (nil? timer) (evt-inside? evt bounds))
-                  state
-                  (do (js/clearTimeout timer)
-                      (assoc state :inter/timer nil))))
-
-              ; End of user interaction. If we end up here with timer, it means that 
-              ; the interaction was completed within the same DOM element that it 
-              ; started, *AND* that interacton ended before the timer was fired. This 
-              ; means it's regular click.
-              ("mouseup" "touchend")
-              (fn [{:as state :inter/keys [timer coords] :game/keys [game]}]
-                (if timer
-                  (do (js/clearTimeout timer)
-                      (assoc state
-                             :game/game (game/play game coords)
-                             :inter/timer nil))
-                  state))
-
-              ; Fired when click has been active for flag-delay milliseconds. This 
-              ; means it's a "long" click and we need to toggle the flag. Verify that
-              ; the received event is the one saved in state.
-              "timer"
-              (fn [{:as state :inter/keys [timer timer-evt coords] :game/keys [game]}]
-                (if (and (some? timer) (identical? evt timer-evt))
-                  (assoc state
-                         :game/game (game/toggle-flag game coords)
-                         :inter/timer nil)
-                  state)))))
+              ("mousedown" "touchstart") on-mouse-down
+              ("mousemove" "touchmove")  on-mouse-move
+              ("mouseup" "touchend")     on-mouse-up
+              "timer"                    on-timer)
+            (util/prevent-default evt)))
 
 
 (defn- cell [{:keys [cell]}]
@@ -183,32 +140,50 @@
 
 
 (defn grid [{:keys [state]}]
-  (let [width  (-> state :game/level levels :game/width)
-        height (-> state :game/level levels :game/height)
+  (let [width  (-> state :game/level game/levels :game/width)
+        height (-> state :game/level game/levels :game/height)
         status (-> state :game/game :game/status)
         board  (-> state :game/game :game/board)]
     [:div.grid {:class [(when (= status :game.status/win) "win")
                         (when (= status :game.status/boom) "boom")]
                 :style {:max-width             (-> width (* 2.8) (.toFixed 2) (str "em"))
                         :grid-template-columns (->> "1fr" (repeat width) (str/join " "))}
-                :on-touch-start handle-click-event
-                :on-touch-move handle-click-event
-                :on-touch-end handle-click-event
-                :on-mouse-down handle-click-event
-                :on-mouse-move handle-click-event
-                :on-mouse-up handle-click-event
-                :on-click prevent-default
-                :on-context-menu prevent-default}
+                :on-touch-start  handle-click-event
+                :on-touch-move   handle-click-event
+                :on-touch-end    handle-click-event
+                :on-mouse-down   handle-click-event
+                :on-mouse-move   handle-click-event
+                :on-mouse-up     handle-click-event
+                :on-click        util/prevent-default
+                :on-context-menu util/prevent-default}
      (for [row (range height)
            col (range width)]
        [cell {:key (str col ":" row)
               :cell (get board [col row])}])]))
 
 
+(defn reset-game! []
+  (r/rswap! state/app-state state/reset-game))
+
+
+(defn select-level! [level]
+  (r/rswap! state/app-state (fn [state]
+                              (-> state
+                                  (assoc :game/level level)
+                                  (state/reset-game)))))
+
+
+(defn undo! []
+  (r/rswap! state/app-state state/undo))
+
+
 (defn game []
-  (let [state @app-state]
+  (let [state @state/app-state]
     [:div
      [:div.controls
-      [level-selector]
-      [reset-button {:status (-> state :game/game :game/status)}]]
+      [level-selector {:set-level select-level!}]
+      [reset-button {:status     (-> state :game/game :game/status)
+                     :reset-game reset-game!}]
+      [undo-button {:disabled? (-> state :game/history (seq) (nil?))
+                    :undo undo!}]]
      [grid {:state state}]]))

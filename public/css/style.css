@@ -1,17 +1,22 @@
 .controls {
   display: flex;
   align-items: center;
+  gap: 0.3em;
 }
 
-.controls .reset {
+.reset {
   display:   inline-block;
   font-size: 2em;
   border:    none;
   cursor:    pointer; 
 }
 
-.controls .level-selector {
+.level-selector {
   display: inline-block;
+}
+
+.undo {
+  margin-left: 1em;
 }
 
 .grid {
