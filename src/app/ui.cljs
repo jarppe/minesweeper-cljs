@@ -168,7 +168,7 @@
         cell-state (-> cell :cell/state)
         cell-value (-> cell :cell/value)]
     [:div.cell {:class [(when (= cell-state :cell.state/hidden) "hidden")
-                        (when (= cell-state :cell.state/flagged) (str "hidden" " " "flagged"))
+                        (when (= cell-state :cell.state/flagged) (str "hidden flagged"))
                         (when (= cell-value :cell.value/boom) "boom")
                         (when (not= cell-value :cell.value/boom)
                           (str "v" cell-value))]
