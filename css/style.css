@@ -1,27 +1,65 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+	border: 0;
+	font-size: 100%;
+	font: inherit;
+	vertical-align: baseline;
+}
+
+
+a, a:hover, a:visited, a:active {
+  text-decoration: none;
+}
+
+button {
+  cursor: pointer;
+  font: inherit;
+}
+
 .controls {
   display: flex;
   align-items: center;
   gap: 0.3em;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 .reset {
-  display:   inline-block;
-  font-size: 2em;
-  border:    none;
+  font-size: 1.5em;
   cursor:    pointer; 
+  background: none;
+  margin-inline: 0.5em;
+  border-radius: 0.15em;
+  background-color: #E9E9ED;
+  outline: 1px solid #8F8F9C;
 }
 
-.level-selector {
-  display: inline-block;
+.reset:hover {
+  background-color: #D0D0D6;
+  outline-color: #676773;
 }
 
-.undo {
-  margin-left: 1em;
+.undo-counter {
+  display: flex;
+  flex-direction: row;
+  gap: 0.1em;
+  color: gray;
+  font-size: 80%;
+}
+
+.undo-counter .count {
+  font-weight: bold;
+  color: black;
 }
 
 .grid {
   display: grid;
   background-color: rgb(192, 192, 192);
+  font-family: 'Times New Roman', Times, serif;
 }
 
 .cell {
@@ -98,4 +136,11 @@
 
 .grid.win .cell {
   border: 1px solid green;
+}
+
+.game {
+  margin: 0.3em 0 0 0.3em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
 }
