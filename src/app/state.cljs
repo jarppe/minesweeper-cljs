@@ -5,18 +5,20 @@
 
 
 (defonce app-state (r/atom {:game/history ()
-                            :game/level   :game.level/easy
-                            :game/game    (-> :game.level/easy game/levels (game/make-game))
-                            :inter/timer  nil}))
+                            :game/undo-counter 0
+                            :game/level :game.level/easy
+                            :game/game (-> :game.level/easy game/levels (game/make-game))
+                            :inter/timer nil}))
 
 
 (defn reset-game [{:as state :inter/keys [timer] :game/keys [level]}]
   (when timer
     (js/clearTimeout timer))
   (-> state
-      (assoc :inter/timer  nil
+      (assoc :inter/timer nil
              :game/history ()
-             :game/game    (-> level game/levels (game/make-game)))))
+             :game/undo-counter 0
+             :game/game (-> level game/levels (game/make-game)))))
 
 
 (defn toggle-flag [state coords]
@@ -31,10 +33,12 @@
       (update :game/game game/play coords)))
 
 
-(defn undo [{:as state :game/keys [history]}]
-  (assoc state
-         :game/history (rest history)
-         :game/game (first history)))
+(defn undo [state]
+  (let [[saved-game & history] (-> state :game/history)]
+    (-> state
+        (assoc :game/game saved-game
+               :game/history history)
+        (update :game/undo-counter inc))))
 
 
 ;(game/make-game (:game.level/easy levels))

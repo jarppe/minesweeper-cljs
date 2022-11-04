@@ -7,22 +7,26 @@
    [app.util :as util]))
 
 
+(def levels [[:game.level/easy "signal_cellular_alt_1_bar"]
+             [:game.level/intermediate "signal_cellular_alt_2_bar"]
+             [:game.level/expert "signal_cellular_alt"]])
+
+
 (defn level-selector [{:keys [set-level]}]
-  (into [:<>]
-        (for [[k _] game/levels]
-          [:button.level-selector
-           {:on-click (fn [_] (set-level k))}
-           (name k)])))
+  (into [:<>] (for [[level-id icon-name] levels]
+                [:button {:on-click (fn [_] (set-level level-id))}
+                 [:span.material-icons-round.md-24 icon-name]])))
 
 
 (defn reset-button [{:keys [status reset-game]}]
-  [:button.reset {:on-click (fn [_e]
-                              (reset-game)
-                              nil)}
-   (condp = status
-     :game.status/win  "😎"
-     :game.status/boom "🌚"
-     "🌝")])
+  [:a.reset {:on-click (fn [e]
+                         (util/prevent-default e)
+                         (reset-game)
+                         nil)}
+   [:span (case status
+            :game.status/ok "🌝"
+            :game.status/win "😎"
+            :game.status/boom "🌚")]])
 
 
 (defn undo-button [{:keys [disabled? undo]}]
@@ -31,7 +35,16 @@
     :on-click (fn [_e]
                 (undo)
                 nil)}
-   "⬅"])
+   [:span.material-icons-round.md-24 "undo"]])
+
+
+(defn undo-counter [{:keys [undo-counter]}]
+  [:div.undo-counter
+   (when (pos? undo-counter)
+     [:<>
+      [:span "Undo used"]
+      [:span.count (str undo-counter)]
+      [:span "times"]])])
 
 
 (def flag-delay 100)
@@ -102,11 +115,11 @@
 ; means it's a "long" click and we need to toggle the flag. Verify that
 ; the received event is the one saved in state.
 
-(defn- on-timer [{:as state :inter/keys [timer timer-evt coords] :game/keys [game]} evt]
+(defn- on-timer [{:as state :inter/keys [timer timer-evt coords]} evt]
   (if (and (some? timer) (identical? evt timer-evt))
-    (assoc state
-           :game/game (game/toggle-flag game coords)
-           :inter/timer nil)
+    (-> state
+        (state/toggle-flag coords)
+        (assoc :inter/timer nil))
     state))
 
 
@@ -179,11 +192,12 @@
 
 (defn game []
   (let [state @state/app-state]
-    [:div
+    [:div.game
      [:div.controls
       [level-selector {:set-level select-level!}]
       [reset-button {:status     (-> state :game/game :game/status)
                      :reset-game reset-game!}]
       [undo-button {:disabled? (-> state :game/history (seq) (nil?))
-                    :undo undo!}]]
+                    :undo undo!}]
+      [undo-counter {:undo-counter (-> state :game/undo-counter)}]]
      [grid {:state state}]]))
