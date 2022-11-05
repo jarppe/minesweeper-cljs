@@ -138,15 +138,24 @@
             (util/prevent-default evt)))
 
 
+(def state+value->classes
+  (apply hash-map
+         (into
+          [[:cell.state/hidden :cell.value/boom] ["hidden"]
+           [:cell.state/visible :cell.value/boom] ["boom"]
+           [:cell.state/boom :cell.value/boom] ["boom"]
+           [:cell.state/flagged :cell.value/boom] ["hidden" "flagged"]]
+          cat
+          (for [i (range 10)]
+            [[:cell.state/hidden i] ["hidden"]
+             [:cell.state/flagged i] ["hidden" "flagged"]
+             [:cell.state/visible i] [(str "v" i)]]))))
+
 (defn- cell [{:keys [cell]}]
   (let [[x y]      (-> cell :cell/coords)
         cell-state (-> cell :cell/state)
         cell-value (-> cell :cell/value)]
-    [:div.cell {:class [(when (= cell-state :cell.state/hidden) "hidden")
-                        (when (= cell-state :cell.state/flagged) (str "hidden flagged"))
-                        (when (= cell-value :cell.value/boom) "boom")
-                        (when (not= cell-value :cell.value/boom)
-                          (str "v" cell-value))]
+    [:div.cell {:class (state+value->classes [cell-state cell-value])
                 :data-x (str x)
                 :data-y (str y)}
      (case cell-state
