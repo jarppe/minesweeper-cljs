@@ -35,10 +35,12 @@
 
 (defn undo [state]
   (let [[saved-game & history] (-> state :game/history)]
-    (-> state
-        (assoc :game/game saved-game
-               :game/history history)
-        (update :game/undo-counter inc))))
+    (if saved-game
+      (-> state
+          (assoc :game/game saved-game
+                 :game/history history)
+          (update :game/undo-counter inc))
+      state)))
 
 
 ;(game/make-game (:game.level/easy levels))

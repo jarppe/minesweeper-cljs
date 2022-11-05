@@ -14,7 +14,8 @@
 
 (defn level-selector [{:keys [set-level]}]
   (into [:<>] (for [[level-id icon-name] levels]
-                [:button {:on-click (fn [_] (set-level level-id))}
+                [:a.level-selector {:on-click (fn [_] (set-level level-id))
+                                    :href "#"}
                  [:span.material-icons-round.md-24 icon-name]])))
 
 
@@ -22,7 +23,8 @@
   [:a.reset {:on-click (fn [e]
                          (util/prevent-default e)
                          (reset-game)
-                         nil)}
+                         nil)
+             :href "#"}
    [:span (case status
             :game.status/ok "🌝"
             :game.status/win "😎"
@@ -30,11 +32,14 @@
 
 
 (defn undo-button [{:keys [disabled? undo]}]
-  [:button.undo
-   {:disabled disabled?
-    :on-click (fn [_e]
+  [:a.undo
+   {:class [(when disabled? "disabled")]
+    :disabled disabled?
+    :on-click (fn [e]
+                (util/prevent-default e)
                 (undo)
-                nil)}
+                nil)
+    :href "#"}
    [:span.material-icons-round.md-24 "undo"]])
 
 
