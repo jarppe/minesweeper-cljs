@@ -151,6 +151,7 @@
              [:cell.state/flagged i] ["hidden" "flagged"]
              [:cell.state/visible i] [(str "v" i)]]))))
 
+
 (defn- cell [{:keys [cell]}]
   (let [[x y]      (-> cell :cell/coords)
         cell-state (-> cell :cell/state)
